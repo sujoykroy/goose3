@@ -59,24 +59,28 @@ class OutputFormatter(object):
     def get_top_node(self):
         return self.top_node
 
-    def get_formatted_text(self):
+    def get_formatted_text(self, remove_fewwords=True):
         self.top_node = self.article.top_node
         self.remove_negativescores_nodes()
         self.links_to_text()
         self.add_newline_to_br()
         self.replace_with_text()
-        self.remove_fewwords_paragraphs()
+        if remove_fewwords:
+            self.remove_fewwords_paragraphs()
         self.make_list_elms_pretty()
         return self.convert_to_text()
 
     def convert_to_text(self):
         txts = []
         for node in list(self.get_top_node()):
-            txt = self.parser.getText(node)
-            if txt:
-                txt = html.unescape(txt)
-                txt_lis = innerTrim(txt).split(r'\n')
-                txts.extend(txt_lis)
+            nodes = self.get_top_node()
+            nodes = list(self.get_top_node())
+            for node in nodes:
+                txt = self.parser.getText(node)
+                if txt:
+                    txt = html.unescape(txt)
+                    txt_lis = innerTrim(txt).split(r'\n')
+                    txts.extend(txt_lis)
         text = '\n\n'.join(txts)
         # ensure no double newlines at the beginning of lists
         if self.config.parse_lists:
@@ -100,6 +104,7 @@ class OutputFormatter(object):
         should be considered text into text
         """
         self.parser.stripTags(self.get_top_node(), 'a')
+        self.parser.stripTags(self.get_top_node(), 'u')
 
     def make_list_elms_pretty(self):
         """ make any list element read like a list

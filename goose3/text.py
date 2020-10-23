@@ -31,6 +31,17 @@ from goose3.utils.encoding import (smart_unicode, smart_str, DjangoUnicodeDecode
 SPACE_SYMBOLS = re.compile(r'[\s\xa0\t]')
 TABSSPACE = re.compile(r'[\s\t]+')
 
+SITE_DOMAIN_EXTRACTOR = re.compile("^(https?://)?(?P<domain>[^/]+)/")
+
+
+def get_site_domain(text):
+    if not text:
+        return ""
+    matches = SITE_DOMAIN_EXTRACTOR.search(text)
+    if matches:
+        return matches.groupdict().get('domain', '')
+    return ""
+
 
 def get_encodings_from_content(content):
     """

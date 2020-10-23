@@ -21,13 +21,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import os
+import re
 import glob
 from copy import deepcopy
+import urllib
+import json
 
 import dateutil.parser
 from dateutil.tz import tzutc
 
 from goose3.article import Article
+from goose3.sub_article import SubArticle
 from goose3.utils import URLHelper, RawHelper
 from goose3.text import get_encodings_from_content
 from goose3.extractors.content import StandardContentExtractor
@@ -42,19 +46,22 @@ from goose3.extractors.opengraph import OpenGraphExtractor
 from goose3.extractors.publishdate import PublishDateExtractor
 from goose3.extractors.schema import SchemaExtractor
 from goose3.extractors.metas import MetasExtractor
+from goose3.extractors.microdata import MicroDataExtractor
+from goose3.extractors.hcard import HCardExtractor
 from goose3.cleaners import StandardDocumentCleaner
 from goose3.outputformatters import StandardOutputFormatter
 
 from goose3.network import NetworkFetcher
-
+import goose3.text
 
 class CrawlCandidate(object):
-    def __init__(self, config, url, raw_html):
+    def __init__(self, config, url, raw_html, doc=None):
         self.config = config
         # parser
         self.parser = self.config.get_parser()
         self.url = url
         self.raw_html = raw_html
+        self.doc = doc
 
 
 class Crawler(object):
@@ -115,32 +122,44 @@ class Crawler(object):
         # image extractor
         self.image_extractor = self.get_image_extractor()
 
+        # microdata extractor
+        self.microdata_extractor = self.get_microdata_extractor();
+
+        # hCard extractor
+        self.hcard_extractor = self.get_hcard_extractor();
+
         # TODO: use the log prefix
         self.log_prefix = "crawler: "
 
-    def crawl(self, crawl_candidate):
+    def crawl(self, crawl_candidate, crawl_sub=True):
 
         # parser candidate
         parse_candidate = self.get_parse_candidate(crawl_candidate)
+        doc = None
+        if crawl_candidate.doc is None:
+            # raw html
+            raw_html = self.get_html(crawl_candidate, parse_candidate)
 
-        # raw html
-        raw_html = self.get_html(crawl_candidate, parse_candidate)
+            if raw_html is None:
+                return self.article
+        else:
+            doc = crawl_candidate.doc
+            raw_html = None
+        return self.process(
+            raw_html, parse_candidate.url, parse_candidate.link_hash, doc, crawl_sub)
 
-        if raw_html is None:
-            return self.article
-
-        return self.process(raw_html, parse_candidate.url, parse_candidate.link_hash)
-
-    def process(self, raw_html, final_url, link_hash):
+    def process(self, raw_html, final_url, link_hash, doc=None, crawl_sub=False):
 
         # create document
-        doc = self.get_document(raw_html)
+        if doc is None:
+            doc = self.get_document(raw_html)
 
         # article
         self.article._final_url = final_url
+        self.article.site_domain =  goose3.text.get_site_domain(final_url)
         self.article._link_hash = link_hash
         self.article._raw_html = raw_html
-        self.article._doc = doc
+        self.article.doc = doc
         self.article._raw_doc = deepcopy(doc)
 
         # open graph
@@ -168,6 +187,7 @@ class Crawler(object):
         self.article._meta_encoding = metas['encoding']
         self.article._canonical_link = metas['canonical']
         self.article._domain = metas['domain']
+        self.article.metatags = metas['metatags']
 
         # publishdate
         self.article._publish_date = self.publishdate_extractor.extract()
@@ -184,36 +204,71 @@ class Crawler(object):
         # tags
         self.article._tags = self.tags_extractor.extract()
 
+        # Parse json ld
+        json_ld_tags = self.parser.xpath_re(
+            self.article.doc, 'descendant::script[@type="application/ld+json"]')
+        if json_ld_tags:
+            json_ld_text = self.parser.getText(json_ld_tags[0])
+            for i in range(2):
+                try:
+                    self.article.json_ld = json.loads(json_ld_text)
+                except Exception as ex:
+                    if i == 0:
+                        json_ld_text = json_ld_text.replace('""', '", "')
+
+        # self.article.doc = self.cleaner.remove_nested_article_tags(self.article.doc)
+
+        for sub_article in self.article.sub_articles:
+            if sub_article.node == self.article.doc:
+                continue
+            self.parser.remove(sub_article.node)
+
+        # microdata
+        self.article.microdata = self.microdata_extractor.extract()
+
         # authors
         self.article._authors = self.authors_extractor.extract()
 
         # title
         self.article._title = self.title_extractor.extract()
 
+        # hcard
+        self.article.hcards = self.hcard_extractor.extract()
+
+        self.article.read_more_url = self.links_extractor.extract_read_more()
+
         # check for known node as content body
         # if we find one force the article.doc to be the found node
         # this will prevent the cleaner to remove unwanted text content
-        article_body = self.extractor.get_known_article_tags()
+        # article_body = self.extractor.get_known_article_tags()
+        if crawl_sub:
+            article_body = self.extractor.get_known_article_tags()
+            # article_body = articles[0] if articles else None
+        else:
+            article_body = None
         if article_body is not None:
             doc = article_body
 
         # before we do any calcs on the body itself let's clean up the document
         if not isinstance(doc, list):
-            doc = [self.cleaner.clean(doc)]
+            doc_nodes = [self.cleaner.clean(doc)]
         else:
-            doc = [self.cleaner.clean(deepcopy(x)) for x in doc]
+            doc_nodes = [self.cleaner.clean(deepcopy(x)) for x in doc]
 
         # big stuff
-        self.article._top_node = self.extractor.calculate_best_node(doc)
+        self.article._top_node = self.extractor.calculate_best_node(doc_nodes)
 
         # if we do not find an article within the discovered possible article nodes,
         # try again with the root node.
         if self.article._top_node is None:
             # try again with the root node.
             self.article._top_node = self.extractor.calculate_best_node(self.article._doc)
+            # if self.article.top_node is None:
+            #    self.article._top_node = self.article.doc
         else:
             # set the doc member to the discovered article node.
-            self.article._doc = doc
+            # self.article._doc = doc
+            self.article.doc = doc[0] if isinstance(doc, list) else doc
 
         # if we have a top node
         # let's process it
@@ -221,6 +276,7 @@ class Crawler(object):
 
             # article links
             self.article._links = self.links_extractor.extract()
+            self.article.html_links = self.links_extractor.extract_html_links()
 
             # tweets
             self.article._tweets = self.tweets_extractor.extract()
@@ -233,19 +289,49 @@ class Crawler(object):
                 self.get_image()
 
             # post cleanup
-            self.article._top_node = self.extractor.post_cleanup()
+            if crawl_sub:
+                self.article._top_node = self.extractor.post_cleanup()
 
             # clean_text
-            self.article._cleaned_text = self.formatter.get_formatted_text()
+            self.article._cleaned_text = self.formatter.get_formatted_text(
+                remove_fewwords=crawl_sub)
 
         # cleanup tmp file
         self.release_resources()
+        if crawl_sub and len(self.article.sub_articles) > 1:
+            active_sub_articles = []
+            for i in range(len(self.article.sub_articles)):
+                sub_article = self.article.sub_articles[i]
+                if sub_article.node == self.article.doc:
+                    continue
+                crawler = Crawler(self.config)
+                crawled_article = crawler.crawl(
+                    CrawlCandidate(
+                        self.config, final_url, raw_html=sub_article.outer_html),
+                    crawl_sub=False
+                )
+                sub_article.crawled_article = crawled_article
+                active_sub_articles.append(sub_article)
 
+            del self.article.sub_articles[:]
+            self.article.sub_articles.extend(active_sub_articles)
+
+        if crawl_sub and self.article.sub_articles:
+            self.article.sub_articles.sort(
+                    key=lambda obj: -len(obj.cleaned_text))
+            if not self.article.cleaned_text:
+                self.article.cleaned_text = \
+                    self.article.sub_articles[0].crawled_article.cleaned_text
+            if not self.article.authors:
+                self.article.authors = \
+                    self.article.sub_articles[0].authors
         # return the article
         return self.article
 
     @staticmethod
     def get_parse_candidate(crawl_candidate):
+        if crawl_candidate.doc is not None:
+            return SubArticle.get_parsing_candidate(crawl_candidate.doc)
         if crawl_candidate.raw_html:
             return RawHelper.get_parsing_candidate(crawl_candidate.url, crawl_candidate.raw_html)
         return URLHelper.get_parsing_candidate(crawl_candidate.url)
@@ -276,6 +362,39 @@ class Crawler(object):
                 html = response.text
             else:
                 self.article._meta_encoding = encodings
+
+        if not html:
+            html = ""
+        crawl_candidate.raw_html = html
+
+        # Twitter/Facebook specific news crawling. Should be transferred to separate module.
+        site_domain = goose3.text.get_site_domain(parsing_candidate.url)
+        if site_domain == "twitter.com":
+            doc = self.parser.fromstring(html)
+            a_links = self.parser.getElementsByTag(
+                doc, tag='a', attr='class', value='twitter-timeline-link')
+            if a_links:
+                parsing_candidate.url = self.parser.getAttribute(a_links[0], 'href')
+                html = self.htmlfetcher.get_html(parsing_candidate.url)
+                crawl_candidate.raw_html = html
+        elif site_domain == "www.facebook.com" and "/posts/" in parsing_candidate.url:
+            html = html.replace("<!--", "")
+            html = html.replace("-->", "")
+            doc = self.parser.fromstring(html)
+            a_links = self.parser.xpath_re(
+                doc, "//*[@class='hidden_elem']/descendant::a")
+
+            link_re = re.compile(r"https?://l\.facebook\.com/l\.php\?u=(?P<url>[^&]+)&h")
+            for a_link in a_links:
+                href = a_link.attrib.get('href')
+                match = link_re.search(href)
+                if match:
+                    url = match.groupdict()["url"]
+                    parsing_candidate.url = urllib.unquote(url)
+                    html = self.htmlfetcher.get_html(parsing_candidate.url)
+                    crawl_candidate.raw_html = html
+                    break
+
         return html
 
     def get_metas_extractor(self):
@@ -310,6 +429,12 @@ class Crawler(object):
 
     def get_video_extractor(self):
         return VideoExtractor(self.config, self.article)
+
+    def get_microdata_extractor(self):
+        return MicroDataExtractor(self.config, self.article)
+
+    def get_hcard_extractor(self):
+        return HCardExtractor(self.config, self.article)
 
     def get_formatter(self):
         return StandardOutputFormatter(self.config, self.article)

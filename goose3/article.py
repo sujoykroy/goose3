@@ -52,6 +52,24 @@ class Article(object):
         self._publish_datetime_utc = None
         self._additional_data = {}
 
+        # all meta informations
+        self.metatags = {}
+        self.html_links = []
+        # hold microdata
+        self.microdata = {}
+        # hold vcards
+        self.hcards = []
+        self.json_ld = {}
+        self.sub_articles = []
+        self.read_more_url = None
+
+    def get_relative_html_links(self):
+        rel_links = []
+        for link in self.html_links:
+            if link.url == "/":
+                rel_links.append(link)
+        return rel_links
+
     @property
     def title(self):
         ''' str: Title extracted from the HTML source
@@ -67,6 +85,10 @@ class Article(object):
             Note:
                 Read only '''
         return self._cleaned_text
+
+    @cleaned_text.setter
+    def cleaned_text(self, text):
+        self._cleaned_text = text
 
     @property
     def meta_description(self):
@@ -193,6 +215,12 @@ class Article(object):
                 Read only '''
         return self._authors
 
+    @authors.setter
+    def authors(self, authors):
+        if not isinstance(authors, list):
+            raise Exception('authors must be a list.')
+        self._authors = list(authors)
+
     @property
     def final_url(self):
         ''' str: The URL that was used to pull and parsed; `None` if raw_html was used
@@ -225,6 +253,12 @@ class Article(object):
             Note:
                 Read only '''
         return self._doc
+
+    @doc.setter
+    def doc(self, doc):
+        # if doc is not None and isinstance(doc, list):
+        #    raise Exception('doc can\'t be a list.')
+        self._doc = doc
 
     @property
     def raw_doc(self):
@@ -292,6 +326,7 @@ class Article(object):
             "movies": [],
             "links": self.links,
             "authors": self.authors,
+            "hcards": self.hcards,
             "publish_date": self.publish_date
         }
 

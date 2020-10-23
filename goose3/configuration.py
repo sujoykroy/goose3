@@ -24,11 +24,13 @@ import os
 import tempfile
 
 from goose3.text import StopWords
-from goose3.parsers import Parser, ParserSoup
+from goose3.parsers import Parser, ParserSoup, ParserXML
 from goose3.version import __version__
 
 AVAILABLE_PARSERS = {
     'lxml': Parser,
+    'html': Parser,
+    'lxml': ParserXML,
     'soup': ParserSoup,
 }
 
@@ -46,15 +48,16 @@ class ArticleContextPattern(object):
             Must provide, at a minimum, (attr and value) or (tag)
     '''
 
-    __slots__ = ['attr', 'value', 'tag', 'domain']
+    __slots__ = ['attr', 'value', 'tag', 'domain', 'xpath']
 
-    def __init__(self, *, attr=None, value=None, tag=None, domain=None):
-        if (not attr and not value) and not tag:
+    def __init__(self, *, attr=None, value=None, tag=None, domain=None, xpath=None):
+        if (not attr and not value) and not tag and not xpath:
             raise Exception("`attr` and `value` must be set or `tag` must be set")
         self.attr = attr
         self.value = value
         self.tag = tag
         self.domain = domain
+        self.xpath = xpath
 
     def __repr__(self):
         return "ArticleContextPattern(attr={} value={} tag={} domain={})".format(
@@ -62,12 +65,19 @@ class ArticleContextPattern(object):
 
 
 KNOWN_ARTICLE_CONTENT_PATTERNS = [
+    ArticleContextPattern(tag='article', attr='class', value='story-main-content'),
     ArticleContextPattern(attr='class', value='short-story'),
     ArticleContextPattern(attr='itemprop', value='articleBody'),
     ArticleContextPattern(attr='class', value='post-content'),
+    ArticleContextPattern(attr='class', value='article-body'),
+    ArticleContextPattern(attr='id', value='story-body-items'),
+    ArticleContextPattern(attr='class', value='node--type-article'),
+    ArticleContextPattern(tag='article', attr='class', value='content'),
     ArticleContextPattern(attr='class', value='g-content'),
     ArticleContextPattern(attr='class', value='post-outer'),
     ArticleContextPattern(tag='article'),
+    # ArticleContextPattern(
+    #    xpath="descendant::*[not(ancestor::article) and @itemtype='http://schema.org/Article']")
 ]
 
 
@@ -118,9 +128,12 @@ KNOWN_PUBLISH_DATE_TAGS = [
     PublishDatePattern(attr='name', value='published_time_telegram', content='content'),
     PublishDatePattern(attr='name', value='parsely-page', content='content', subcontent='pub_date'),
     PublishDatePattern(tag='time'),
-    PublishDatePattern(attr='itemprop', value='datePublished', content='content')
+    PublishDatePattern(attr='itemprop', value='datePublished', content='content'),
+    PublishDatePattern(attr='id', value='publish_date', content=None),
+    PublishDatePattern(attr='class', value='authored-on'),
+    PublishDatePattern(attr='class', value='times', content=None),
+    PublishDatePattern(attr='class', value='date', content=None)
 ]
-
 
 class AuthorPattern(object):
     ''' Ensures that the author patterns are correctly formed for use with the
@@ -167,7 +180,7 @@ class Configuration(object):
     def __init__(self):
         # parser information
         self._available_parsers = list(AVAILABLE_PARSERS.keys())
-        self._parser_class = 'lxml'
+        self._parser_class = 'html'
 
         # URL extraction parameters
         self._browser_user_agent = 'Goose/%s' % __version__

@@ -20,41 +20,88 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-
+import re
 from goose3.extractors import BaseExtractor
 
+KNOWN_AUTHOR_TAGS = [
+    {'attribute': 'class', 'value': 'ng_byline_name', 'content': None},
+    {'attribute': 'class', 'value': 'author-name', 'content': None},
+    {'xpath': "descendant::*[contains(@class, 'byline')]", 'content': None},
+]
 
 class AuthorsExtractor(BaseExtractor):
+    AUTHOR_REPLACER = re.compile("(^by\s+)|([\|\/].+)|(\S+:)", flags=re.IGNORECASE)
+    AUTHOR_SPLITTER = re.compile(r"\band\b|,", flags=re.IGNORECASE|re.U)
 
     def extract(self):
-        authors = set()
+        authors = []
+        author_nodes = self.parser.getElementsByTag(
+                            self.article.doc,
+                            attr='itemprop',
+                            value='author')
+        for author_node in author_nodes:
+            name_nodes = self.parser.getElementsByTag(
+                            author_node,
+                            attr='itemprop',
+                            value='name')
+            if len(name_nodes) > 0:
+                name = self.parser.getText(name_nodes[0])
+                authors.append(name)
+            else:
+                authors.append(self.parser.getText(author_node))
 
-        for known_tag in self.config.known_author_patterns:
-            meta_tags = self.parser.getElementsByTag(self.article.doc,
-                                                     attr=known_tag.attr,
-                                                     value=known_tag.value,
-                                                     tag=known_tag.tag)
-            if not meta_tags:
-                continue
-
-            for meta_tag in meta_tags:
-
-                if known_tag.subpattern:
-                    name_nodes = self.parser.getElementsByTag(meta_tag,
-                                                              attr=known_tag.subpattern.attr,
-                                                              value=known_tag.subpattern.value,
-                                                              tag=known_tag.subpattern.tag)
-
-                    if len(name_nodes) > 0:
-                        name = self.parser.getText(name_nodes[0])
-                        authors.add(name)
+        for known_tag in KNOWN_AUTHOR_TAGS:
+            if known_tag.get('xpath'):
+                tags = self.parser.xpath_re(self.article.doc, known_tag.get('xpath'))
+            else:
+                tags = self.parser.getElementsByTag(
+                                self.article.doc,
+                                attr=known_tag['attribute'],
+                                value=known_tag['value'])
+            if tags:
+                if not known_tag['content']:
+                    author = self.parser.getText(tags[0])
                 else:
-                    if known_tag.tag is None:
-                        name = self.parser.getAttribute(meta_tag, known_tag.content)
-                        if not name:
-                            continue
+                    author = self.parser.getAttribute(
+                        tags[0],
+                        known_tag['content']
+                    )
+                authors.append(author)
 
-                        authors.add(name)
-                    else:
-                        authors.add(meta_tag.text_content().strip())
-        return list(authors)
+        for item in self.article.microdata.get("newsarticle", []):
+            author = item.get('author')
+            if author:
+                authors.append(author)
+
+        for item in self.article.microdata.get("person", []):
+            author = item.get('name')
+            if author:
+                authors.append(author)
+
+        for item in self.article.microdata.get("hcard", []):
+            author = item.get('n')
+            if author:
+                authors.append(author)
+
+        author = self.article.metatags.get("author")
+        if author:
+            authors.append(author)
+
+        clean_authors = []
+        author_keys = {}
+        for full_author in authors:
+            if not full_author:
+                continue
+            if not isinstance(full_author, str) and \
+               not isinstance(full_author, unicode):
+                continue
+            for author in self.AUTHOR_SPLITTER.split(full_author):
+                author = self.AUTHOR_REPLACER.sub("", author).strip()
+                if author.lower() in author_keys:
+                    continue
+                author_keys[author.lower()] = True
+                clean_authors.append(author)
+
+        clean_authors = list(set(clean_authors))
+        clean_authors.sort()
+        return clean_authors

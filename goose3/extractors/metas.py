@@ -130,6 +130,22 @@ class MetasExtractor(BaseExtractor):
         encoding = get_encodings_from_content(self.article.raw_html)
         return encoding and encoding[0] or None
 
+    def get_all_metatags(self):
+        """\
+        Get all the meta elements and its content/values
+        """
+        metatags = {}
+        nodes = self.parser.getElementsByTag(self.article.doc, 'meta')
+        for node in nodes:
+            name = self.parser.getAttribute(node, 'name')
+            if not name:
+                name = self.parser.getAttribute(node, 'property')
+            value = self.parser.getAttribute(node, 'content')
+            if not name or not value:
+                continue
+            metatags[name] = value.strip()
+        return metatags
+
     def extract(self):
         return {
             "description": self.get_meta_description(),
@@ -138,5 +154,6 @@ class MetasExtractor(BaseExtractor):
             "favicon": self.get_favicon(),
             "canonical": self.get_canonical_link(),
             "domain": self.get_domain(),
-            "encoding": self.get_meta_encoding()
+            "encoding": self.get_meta_encoding(),
+            "metatags": self.get_all_metatags()
         }

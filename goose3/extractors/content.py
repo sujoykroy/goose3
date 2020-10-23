@@ -21,9 +21,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 from copy import deepcopy
+from operator import itemgetter
 
 from goose3.extractors import BaseExtractor
+from goose3.sub_article import SubArticle
 
+
+BAD_ARTICLE_ATTRIBS = set(('alert',))
+
+REMOVE_TAGS_RE = r"fig*|header"
+NAUGHTY_TAGS_RE = "descendant::*[re:test(local-name(), '%s', 'i')]" % REMOVE_TAGS_RE
 
 class ContentExtractor(BaseExtractor):
 
@@ -48,9 +55,20 @@ class ContentExtractor(BaseExtractor):
             if item.domain and self.article.domain != item.domain:
                 continue
 
-            nodes.extend(self.parser.getElementsByTag(self.article.doc, tag=item.tag,
+            if item.xpath:
+                nodes.extend(
+                    self.parser.xpath_re(self.article.doc, item.xpath)
+                )
+            else:
+                nodes.extend(self.parser.getElementsByTag(self.article.doc, tag=item.tag,
                                                       attr=item.attr, value=item.value))
         if nodes:
+            for node in nodes:
+                if len(self.parser.xpath_re(
+                    node, 'descendant::*[self::div or self::p]')) == 0:
+                    continue
+                self.article.sub_articles.append(
+                    SubArticle(node=node, parser=self.parser))
             return nodes
         return None
 
@@ -133,17 +151,37 @@ class ContentExtractor(BaseExtractor):
             i += 1
 
         top_node_score = 0
+        average_score = 0
+
         for itm in parent_nodes:
             score = self.get_score(itm)
 
             if score > top_node_score:
+                if top_node is not None:
+                    average_score = (average_score + score)*.5
+                else:
+                    average_score = score
                 top_node = itm
                 top_node_score = score
 
             if top_node is None:
                 top_node = itm
-
+        # if top_node is not None and average_score != 0:
+        #    score_by_avg =  self.get_score(top_node)/average_score
+        #    self.parser.setAttribute(top_node, "scoreByAvg", str(score_by_avg))
         return top_node
+
+    def get_score_by_avg(self, node):
+        """\
+        returns the gravityScore divided by average score of the relevant tags
+        calculate during calculate_best_node
+        """
+        score_string = self.parser.getAttribute(node, 'scoreByAvg')
+        if score_string:
+            score = float(score_string)
+        else:
+            score = 0
+        return score
 
     def is_boostable(self, node):
         """\
@@ -172,6 +210,17 @@ class ContentExtractor(BaseExtractor):
                     return True
                 steps_away += 1
         return False
+
+    def get_node_count(self, node):
+        """\
+        get how many decent nodes are under a parent node
+        """
+        current_score = 0
+        count_string = self.parser.getAttribute(node, 'gravityNodes')
+        if count_string:
+            current_score = int(count_string)
+
+        return current_score
 
     def walk_siblings(self, node):
         current_sibling = self.parser.previousSibling(node)
@@ -333,6 +382,8 @@ class ContentExtractor(BaseExtractor):
 
     def is_table_and_no_para_exist(self, elm):
         sub_paragraphs = self.parser.getElementsByTag(elm, tag='p')
+        # if len(sub_paragraphs) == 1:
+        #    return False
         for para in sub_paragraphs:
             txt = self.parser.getText(para)
             if len(txt) < 25:
@@ -346,6 +397,10 @@ class ContentExtractor(BaseExtractor):
     def is_nodescore_threshold_met(self, node, elm):
         top_node_score = self.get_score(node)
         current_node_score = self.get_score(elm)
+        # node_count = self.get_node_count(node)
+        # if node_count == 0:
+        #    node_count = 1
+        # threshold_score = float(top_node_score * .08 / node_count)
         threshold_score = float(top_node_score * .08)
 
         if (current_node_score < threshold_score) and elm.tag != 'td':
@@ -371,6 +426,11 @@ class ContentExtractor(BaseExtractor):
                 if (self.is_highlink_density(elm) or self.is_table_and_no_para_exist(elm) or
                         not self.is_nodescore_threshold_met(node, elm)):
                     self.parser.remove(elm)
+
+        # tag
+        # naughty_tags = self.parser.xpath_re(node, NAUGHTY_TAGS_RE)
+        # for sub_node in naughty_tags:
+        #    self.parser.remove(sub_node)
         return node
 
 

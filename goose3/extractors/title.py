@@ -26,6 +26,7 @@ from goose3.extractors import BaseExtractor
 
 
 TITLE_SPLITTERS = ["|", "-", "»", ":"]
+TITLE_NONALPHA_ENDERS = re.compile(u"([\ \-\–\|]+$)")
 
 
 class TitleExtractor(BaseExtractor):
@@ -50,6 +51,8 @@ class TitleExtractor(BaseExtractor):
         if self.article.domain:
             pattern = re.compile(self.article.domain, re.IGNORECASE)
             title = pattern.sub("", title).strip()
+
+        title = TITLE_NONALPHA_ENDERS.sub("", title)
 
         # split the title in words
         # TechCrunch | my wonderfull article
@@ -82,9 +85,34 @@ class TitleExtractor(BaseExtractor):
         """
         title = ''
 
+        title_tag_text = ''
+        title_element = self.parser.getElementsByTag(self.article.doc, tag='title')
+        if title_element is not None and len(title_element) > 0:
+            title = self.parser.getText(title_element[0])
+            title_tag_text = self.clean_title(title)
+
         # rely on opengraph in case we have the data
         if "title" in list(self.article.opengraph.keys()):
-            return self.clean_title(self.article.opengraph['title'])
+            title = self.article.opengraph['title']
+            url_words = None
+            if "url" in list(self.article.opengraph.keys()):
+                url = self.article.opengraph['url']
+                url_slashes = list(filter(
+                    lambda slash: len(slash.strip()),
+                    url.split("/")
+                ))
+                if len(url_slashes):
+                    url_words = url_slashes[-1].split("-")
+
+            title = self.clean_title(title)
+            if not url_words:
+                return title
+
+            # If the og:url is really linked with the doc tilte
+            if not (set(title.lower().split(" ")) & set(url_words)) and \
+               (set(title_tag_text.lower().split(" ")) & set(url_words)):
+                return title_tag_text
+            return title
         elif self.article.schema and "headline" in self.article.schema:
             return self.clean_title(self.article.schema['headline'])
 
@@ -97,13 +125,43 @@ class TitleExtractor(BaseExtractor):
             title = self.parser.getAttribute(meta_headline[0], 'content')
             return self.clean_title(title)
 
-        # otherwise use the title meta
-        title_element = self.parser.getElementsByTag(self.article.doc, tag='title')
-        if title_element is not None and len(title_element) > 0:
-            title = self.parser.getText(title_element[0])
+        if title_tag_text:
+            return title_tag_text
+
+        newsarticles = self.article.microdata.get('newsarticle')
+        if newsarticles:
+            title = newsarticles[0].get('headline', '')
+            if title:
+                return self.clean_title(title)
+
+        articles = self.article.microdata.get('article')
+        if articles:
+            if isinstance(articles, list):
+                article = articles[0]
+            else:
+                article = articles
+            title = article.get('headline', '')
+            if title:
+                return self.clean_title(title)
+
+        #get text of item with class=headline
+        class_headline = self.parser.getElementsByTag(
+                            self.article.doc,
+                            attr="class",
+                            value="headline")
+        if class_headline is not None and len(class_headline) > 0:
+            title = self.parser.getText(class_headline[0])
             return self.clean_title(title)
 
-        return title
+        # try to fetch the header link text
+        header_link = self.parser.xpath_re(
+                            self.article.doc,
+                            "//header/*[not(self::p)]/descendant::a")
+        if header_link:
+            title = self.parser.getText(header_link[0])
+            return self.clean_title(title)
+
+        return title_tag_text
 
     def extract(self):
         return self.get_title()

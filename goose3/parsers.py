@@ -22,7 +22,9 @@ limitations under the License.
 """
 from copy import deepcopy
 
+from io import StringIO
 import lxml.html
+from lxml.cssselect import CSSSelector
 from lxml import etree
 
 from goose3.text import innerTrim, encodeValue, get_encodings_from_content, smart_str
@@ -41,7 +43,7 @@ class Parser(object):
         if isinstance(nodes, list):
             for node in nodes:
                 node.drop_tag()
-        else:
+        elif hasattr(nodes, 'drop_tag'):
             nodes.drop_tag()
 
     @classmethod
@@ -60,6 +62,11 @@ class Parser(object):
             parser = lxml.html.HTMLParser(encoding=encoding)
             doc = lxml.html.fromstring(html, parser=parser)
         return doc
+
+    @classmethod
+    def stringToNode(cls, html):
+        html = encodeValue(html)
+        return lxml.html.fromstring(html)
 
     @classmethod
     def nodeToString(cls, node):
@@ -88,11 +95,18 @@ class Parser(object):
         selector = 'descendant-or-self::%s' % (tag or '*')
         if attr and value:
             selector = '%s[re:test(@%s, "%s", "i")]' % (selector, attr, value)
+        elif attr:
+            selector = '%s[@%s]' % (selector, attr)
         elems = node.xpath(selector, namespaces={"re": namespace})
         # remove the root node
         # if we have a selection tag
         if node in elems and (tag or childs):
             elems.remove(node)
+        return elems
+
+    @classmethod
+    def getElementsByXPath(cls, node, xpath):
+        elems = node.xpath(xpath)
         return elems
 
     @classmethod
@@ -240,6 +254,25 @@ class Parser(object):
             tmp = deepcopy(tmp)
             tmp.tail = None
         return cls.nodeToString(tmp)
+
+
+class ParserXML(Parser):
+    @classmethod
+    def fromstring(cls, html):
+        html = encodeValue(html)
+        doc = etree.parse(StringIO(html), etree.HTMLParser(recover=True)).getroot()
+        return doc
+
+    @classmethod
+    def css_select(cls, node, selector):
+        sel = CSSSelector(selector)
+        return node.xpath(sel.path)
+
+    @classmethod
+    def getAttribute(cls, node, attr=None):
+        if attr:
+            return node.get(attr, None)
+        return attr
 
 
 class ParserSoup(Parser):

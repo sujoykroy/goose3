@@ -2,6 +2,7 @@
     "url": "http://exemple.com/tweet/",
     "expected": {
         "authors": [
+            "John Smith",
             "KEVIN SACK",
             "SHERI FINK"
         ]
