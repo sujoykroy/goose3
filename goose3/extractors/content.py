@@ -30,7 +30,11 @@ from goose3.sub_article import SubArticle
 BAD_ARTICLE_ATTRIBS = set(('alert',))
 
 REMOVE_TAGS_RE = r"fig*|header"
-NAUGHTY_TAGS_RE = "descendant::*[re:test(local-name(), '%s', 'i')]" % REMOVE_TAGS_RE
+REMOVE_ATTR_RE = r"image-"
+NAUGHTY_ELEM_RE_LIST = [
+    "descendant::*[re:test(local-name(), '%s', 'i')]" % REMOVE_TAGS_RE,
+    "descendant::*[contains(@class, '%s')]" % REMOVE_ATTR_RE,
+]
 
 class ContentExtractor(BaseExtractor):
 
@@ -382,8 +386,8 @@ class ContentExtractor(BaseExtractor):
 
     def is_table_and_no_para_exist(self, elm):
         sub_paragraphs = self.parser.getElementsByTag(elm, tag='p')
-        # if len(sub_paragraphs) == 1:
-        #    return False
+        if len(sub_paragraphs) == 1:
+            return False
         for para in sub_paragraphs:
             txt = self.parser.getText(para)
             if len(txt) < 25:
@@ -397,11 +401,11 @@ class ContentExtractor(BaseExtractor):
     def is_nodescore_threshold_met(self, node, elm):
         top_node_score = self.get_score(node)
         current_node_score = self.get_score(elm)
-        # node_count = self.get_node_count(node)
-        # if node_count == 0:
-        #    node_count = 1
-        # threshold_score = float(top_node_score * .08 / node_count)
-        threshold_score = float(top_node_score * .08)
+        node_count = self.get_node_count(node)
+        if node_count == 0:
+           node_count = 1
+        threshold_score = float(top_node_score * .08 / node_count)
+        # threshold_score = float(top_node_score * .08)
 
         if (current_node_score < threshold_score) and elm.tag != 'td':
             return False
@@ -428,9 +432,10 @@ class ContentExtractor(BaseExtractor):
                     self.parser.remove(elm)
 
         # tag
-        # naughty_tags = self.parser.xpath_re(node, NAUGHTY_TAGS_RE)
-        # for sub_node in naughty_tags:
-        #    self.parser.remove(sub_node)
+        for elem_re in NAUGHTY_ELEM_RE_LIST:
+            naughty_tags = self.parser.xpath_re(node, elem_re)
+            for sub_node in naughty_tags:
+               self.parser.remove(sub_node)
         return node
 
 

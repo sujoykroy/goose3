@@ -23,15 +23,10 @@ limitations under the License.
 import re
 from goose3.extractors import BaseExtractor
 
-KNOWN_AUTHOR_TAGS = [
-    {'attribute': 'class', 'value': 'ng_byline_name', 'content': None},
-    {'attribute': 'class', 'value': 'author-name', 'content': None},
-    {'xpath': "descendant::*[contains(@class, 'byline')]", 'content': None},
-]
-
 class AuthorsExtractor(BaseExtractor):
     AUTHOR_REPLACER = re.compile("(^by\s+)|([\|\/].+)|(\S+:)", flags=re.IGNORECASE)
     AUTHOR_SPLITTER = re.compile(r"\band\b|,", flags=re.IGNORECASE|re.U)
+    BAD_AUTHOR = re.compile(r"[0-9]")
 
     def extract(self):
         authors = []
@@ -50,21 +45,21 @@ class AuthorsExtractor(BaseExtractor):
             else:
                 authors.append(self.parser.getText(author_node))
 
-        for known_tag in KNOWN_AUTHOR_TAGS:
-            if known_tag.get('xpath'):
-                tags = self.parser.xpath_re(self.article.doc, known_tag.get('xpath'))
+        for known_tag in self.config.known_author_patterns:
+            if known_tag.xpath:
+                tags = self.parser.xpath_re(self.article.doc, known_tag.xpath)
             else:
                 tags = self.parser.getElementsByTag(
                                 self.article.doc,
-                                attr=known_tag['attribute'],
-                                value=known_tag['value'])
+                                attr=known_tag.attr,
+                                value=known_tag.value)
             if tags:
-                if not known_tag['content']:
+                if not known_tag.content:
                     author = self.parser.getText(tags[0])
                 else:
                     author = self.parser.getAttribute(
                         tags[0],
-                        known_tag['content']
+                        known_tag.content
                     )
                 authors.append(author)
 
@@ -92,12 +87,15 @@ class AuthorsExtractor(BaseExtractor):
         for full_author in authors:
             if not full_author:
                 continue
-            if not isinstance(full_author, str) and \
-               not isinstance(full_author, unicode):
+            if not isinstance(full_author, str):
                 continue
             for author in self.AUTHOR_SPLITTER.split(full_author):
                 author = self.AUTHOR_REPLACER.sub("", author).strip()
+                if not author:
+                    continue
                 if author.lower() in author_keys:
+                    continue
+                if self.BAD_AUTHOR.match(author):
                     continue
                 author_keys[author.lower()] = True
                 clean_authors.append(author)
