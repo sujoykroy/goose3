@@ -52,6 +52,9 @@ class DocumentCleaner(object):
             "|konafilter|KonaFilter|breadcrumbs|^fn$|wp-caption-text"
             "|legende|ajoutVideo|timestamp|js_replies|disclaim"
         )
+        self.nested_article_xpaths = [
+            "//aside//article"
+        ]
         self.regexp_namespace = "http://exslt.org/regular-expressions"
         self.nauthy_ids_re = "//*[re:test(@id, '%s', 'i')]" % self.remove_nodes_re
         self.nauthy_classes_re = "//*[re:test(@class, '%s', 'i')]" % self.remove_nodes_re
@@ -90,6 +93,12 @@ class DocumentCleaner(object):
         elements = self.parser.getElementsByTag(doc, tag="body")
         if elements:
             self.parser.delAttribute(elements[0], attr="class")
+        return doc
+
+    def remove_nested_article_tags(self, doc):
+        for xpath in self.nested_article_xpaths:
+            for elem in self.parser.getElementsByXPath(doc, xpath):
+                self.parser.remove(elem)
         return doc
 
     def clean_article_tags(self, doc):

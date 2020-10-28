@@ -149,16 +149,17 @@ class AuthorPattern(object):
             subpattern (str): A subpattern for elements within the main attribute
     '''
 
-    __slots__ = ['attr', 'value', 'content', 'tag', 'subpattern']
+    __slots__ = ['attr', 'value', 'content', 'tag', 'subpattern', 'xpath']
 
-    def __init__(self, *, attr=None, value=None, content=None, tag=None, subpattern=None):
-        if (not attr and not value) and not tag:
+    def __init__(self, *, attr=None, value=None, content=None, tag=None, subpattern=None, xpath=None):
+        if (not attr and not value) and not tag and not xpath:
             raise Exception("`attr` and `value` must be set or `tag` must be set")
         self.attr = attr
         self.value = value
         self.content = content
         self.tag = tag
         self.subpattern = subpattern
+        self.xpath = xpath
 
     def __repr__(self):
         if self.tag:
@@ -171,7 +172,11 @@ class AuthorPattern(object):
 
 KNOWN_AUTHOR_PATTERNS = [
     AuthorPattern(attr='itemprop', value='author', subpattern=AuthorPattern(attr='itemprop', value='name')),
-    AuthorPattern(attr='name', value='author', content='content')
+    AuthorPattern(attr='name', value='author', content='content'),
+    AuthorPattern(attr='class', value='ng_byline_name'),
+    AuthorPattern(attr='class', value='author-name'),
+    AuthorPattern(xpath="descendant::*[contains(concat(' ', @class, ' '), ' byline ')]"),
+    AuthorPattern(xpath="descendant::*[contains(@class,'post-author')]/*[@class='meta-text']/a")
 ]
 
 

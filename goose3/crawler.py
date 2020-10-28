@@ -216,13 +216,13 @@ class Crawler(object):
                     if i == 0:
                         json_ld_text = json_ld_text.replace('""', '", "')
 
-        # self.article.doc = self.cleaner.remove_nested_article_tags(self.article.doc)
-
         for sub_article in self.article.sub_articles:
             if sub_article.node == self.article.doc:
                 continue
             self.parser.remove(sub_article.node)
 
+        self.article.doc = self.cleaner.remove_nested_article_tags(self.article.doc)
+        
         # microdata
         self.article.microdata = self.microdata_extractor.extract()
 
