@@ -76,8 +76,8 @@ KNOWN_ARTICLE_CONTENT_PATTERNS = [
     ArticleContextPattern(attr='class', value='g-content'),
     ArticleContextPattern(attr='class', value='post-outer'),
     ArticleContextPattern(tag='article'),
-    # ArticleContextPattern(
-    #    xpath="descendant::*[not(ancestor::article) and @itemtype='http://schema.org/Article']")
+    ArticleContextPattern(
+        xpath="descendant::*[not(ancestor::article) and @itemtype='https://schema.org/Article']")
 ]
 
 
@@ -175,7 +175,11 @@ KNOWN_AUTHOR_PATTERNS = [
     AuthorPattern(attr='name', value='author', content='content'),
     AuthorPattern(attr='class', value='ng_byline_name'),
     AuthorPattern(attr='class', value='author-name'),
-    AuthorPattern(xpath="descendant::*[contains(concat(' ', @class, ' '), ' byline ')]"),
+    AuthorPattern(
+        xpath="descendant::*[re:test(@class, '(^|\s){0}(\s|$)')]".format(
+            'byline|authors'
+        )
+    ),
     AuthorPattern(xpath="descendant::*[contains(@class,'post-author')]/*[@class='meta-text']/a")
 ]
 

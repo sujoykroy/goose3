@@ -30,57 +30,66 @@ class AuthorsExtractor(BaseExtractor):
 
     def extract(self):
         authors = []
-        author_nodes = self.parser.getElementsByTag(
-                            self.article.doc,
-                            attr='itemprop',
-                            value='author')
-        for author_node in author_nodes:
-            name_nodes = self.parser.getElementsByTag(
-                            author_node,
-                            attr='itemprop',
-                            value='name')
-            if len(name_nodes) > 0:
-                name = self.parser.getText(name_nodes[0])
-                authors.append(name)
-            else:
-                authors.append(self.parser.getText(author_node))
 
-        for known_tag in self.config.known_author_patterns:
-            if known_tag.xpath:
-                tags = self.parser.xpath_re(self.article.doc, known_tag.xpath)
-            else:
-                tags = self.parser.getElementsByTag(
+        if self.article.schema and "author" in self.article.schema:
+            for item in self.article.schema["author"]:
+                if isinstance(item, str):
+                    authors.append(item)
+                elif item.get("@type") == 'Person':
+                        authors.append(item.get("name", ''))
+
+        if not authors:
+            author_nodes = self.parser.getElementsByTag(
                                 self.article.doc,
-                                attr=known_tag.attr,
-                                value=known_tag.value)
-            if tags:
-                if not known_tag.content:
-                    author = self.parser.getText(tags[0])
+                                attr='itemprop',
+                                value='author')
+            for author_node in author_nodes:
+                name_nodes = self.parser.getElementsByTag(
+                                author_node,
+                                attr='itemprop',
+                                value='name')
+                if len(name_nodes) > 0:
+                    name = self.parser.getText(name_nodes[0])
+                    authors.append(name)
                 else:
-                    author = self.parser.getAttribute(
-                        tags[0],
-                        known_tag.content
-                    )
-                authors.append(author)
+                    authors.append(self.parser.getText(author_node))
 
-        for item in self.article.microdata.get("newsarticle", []):
-            author = item.get('author')
+            for known_tag in self.config.known_author_patterns:
+                if known_tag.xpath:
+                    tags = self.parser.xpath_re(self.article.doc, known_tag.xpath)
+                else:
+                    tags = self.parser.getElementsByTag(
+                                    self.article.doc,
+                                    attr=known_tag.attr,
+                                    value=known_tag.value)
+                if tags:
+                    if not known_tag.content:
+                        author = self.parser.getText(tags[0])
+                    else:
+                        author = self.parser.getAttribute(
+                            tags[0],
+                            known_tag.content
+                        )
+                    authors.append(author)
+
+            for item in self.article.microdata.get("newsarticle", []):
+                author = item.get('author')
+                if author:
+                    authors.append(author)
+
+            for item in self.article.microdata.get("person", []):
+                author = item.get('name')
+                if author:
+                    authors.append(author)
+
+            for item in self.article.microdata.get("hcard", []):
+                author = item.get('n')
+                if author:
+                    authors.append(author)
+
+            author = self.article.metatags.get("author")
             if author:
                 authors.append(author)
-
-        for item in self.article.microdata.get("person", []):
-            author = item.get('name')
-            if author:
-                authors.append(author)
-
-        for item in self.article.microdata.get("hcard", []):
-            author = item.get('n')
-            if author:
-                authors.append(author)
-
-        author = self.article.metatags.get("author")
-        if author:
-            authors.append(author)
 
         clean_authors = []
         author_keys = {}

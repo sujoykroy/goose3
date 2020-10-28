@@ -1,0 +1,8 @@
+{
+    "url":  "http://www.newslocker.com/en-uk/profession/auto_news/geelys-china-sales-pass-japanese-rivals-as-automaker-chases-vw-gm/",
+    "expected": {
+        "title": "Geely's China sales pass Japanese rivals as automaker chases VW, GM - Auto news - NewsLocker",
+        "read_more_url": "https://www.newslocker.com/en-uk/profession/auto_news/geelys-china-sales-pass-japanese-rivals-as-automaker-chases-vw-gm/view/",
+        "cleaned_text": "Geely Automobile Holdings surpassed its top three Japanese rivals in vehicle sales to become the third-largest automaker in China after VW Group and GM, helped by models that appeal to the nation's young consumers."
+    }
+}

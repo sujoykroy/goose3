@@ -61,7 +61,7 @@ class ContentExtractor(BaseExtractor):
 
             if item.xpath:
                 nodes.extend(
-                    self.parser.xpath_re(self.article.doc, item.xpath)
+                    self.parser.getElementsByXPath(self.article.doc, item.xpath)
                 )
             else:
                 nodes.extend(self.parser.getElementsByTag(self.article.doc, tag=item.tag,

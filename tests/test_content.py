@@ -169,7 +169,7 @@ class TestExtractions(TestExtractionBase):
         fields = ['cleaned_text', 'publish_date', 'authors']
         self.runArticleAssertions(article=article, fields=fields)
 
-    def tes1t_politico_3(self):
+    def test_politico_3(self):
         article = self.getArticle()
         fields = ['authors', 'publish_date', 'cleaned_text']
         self.runArticleAssertions(article=article, fields=fields)
@@ -255,7 +255,7 @@ class TestExtractions(TestExtractionBase):
         fields = ['cleaned_text']
         self.runArticleAssertions(article=article, fields=fields)
 
-    def tes1t_project_syndicate(self):
+    def test_project_syndicate(self):
         article = self.getArticle()
         fields = ['cleaned_text']
         self.runArticleAssertions(article=article, fields=fields)
@@ -265,35 +265,23 @@ class TestExtractions(TestExtractionBase):
         fields = ['cleaned_text']
         self.runArticleAssertions(article=article, fields=fields)
 
-    def tes1t_latimes(self):
-        #self.response_file_map
-
-        article = self.getArticle()
-        fields = ['cleaned_text']
-        self.runArticleAssertions(article=article, fields=fields)
-
-    def tes1t_latimes_subsc(self):
-        article = self.getArticle()
-        fields = ['authors', 'cleaned_text']
-        self.runArticleAssertions(article=article, fields=fields)
-
-    def tes1t_miami_herald(self):
+    def test_miami_herald(self):
         article = self.getArticle()
         fields = ['cleaned_text', 'publish_date', "authors"]
         self.runArticleAssertions(article=article, fields=fields)
 
-    def tes1t_normantranscript(self):
+    def test_normantranscript(self):
         article = self.getArticle()
         fields = ['json_ld']
         self.runArticleAssertions(article=article, fields=fields)
 
-    def tes1t_ahvalnews1(self):
+    def test_ahvalnews1(self):
         article = self.getArticle()
         fields = ['cleaned_text', "publish_date", "authors"]
         self.runArticleAssertions(article=article, fields=fields)
         self.assertTrue(len(article.sub_articles)> 0)
 
-    def tes1t_ahvalnews2(self):
+    def test_ahvalnews2(self):
         article = self.getArticle()
         fields = ['cleaned_text', "publish_date", "authors"]
         self.runArticleAssertions(article=article, fields=fields)
@@ -407,7 +395,6 @@ class TestExtractionsRaw(TestExtractions):
         article = instance.extract(raw_html=self.getRawHtml())
         return article
 
-'''
 class TestSubArticleExtraction(TestExtractionBase):
     def test_raw_article_content_1(self):
         config = self.getConfig()
@@ -438,6 +425,7 @@ class TestSubArticleExtraction(TestExtractionBase):
         self.assertEqual(
             "Rosie O'Donnell and Chorus of Broadway Stars Perform Musical"[0:50],
             article.title[0:50])
+
         self.assertEqual(
             "https://www.nytimes.com/2018/08/07/us/politics/rosie-odonnell-broadway-white-house-protest.html", article.links[0])
         self.assertEqual(
@@ -587,13 +575,13 @@ class TestSubArticleExtraction(TestExtractionBase):
 
     def test_sub_articles_2(self):
         article = self.getArticle()
-        self.assertEqual(42, len(article.sub_articles))
+        self.assertEqual(40, len(article.sub_articles))
         self.assertEqual(
             article.sub_articles[0].crawled_article.title[0:20],
-            "Why Kansas Liberals Want a Trump Supporter"[0:20])
+            "Boris Johnson Speaks"[0:20])
         self.assertEqual(
             article.sub_articles[39].crawled_article.title[0:20],
-            "Top Trump Campaign Aides Are Portrayed"[0:20])
+            "Rosie O’Donnell and "[0:20])
 
     def test_sub_articles_3(self):
         article = self.getArticle()
@@ -601,7 +589,6 @@ class TestSubArticleExtraction(TestExtractionBase):
 
     def test_newslocker(self):
         article = self.getArticle()
-        fields = ["title", 'read_more_url', 'cleaned_text']
+        fields = ["title", 'read_more_url']
         self.runArticleAssertions(article=article, fields=fields)
         self.assertTrue(len(article.sub_articles)> 0)
-'''

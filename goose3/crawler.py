@@ -263,8 +263,8 @@ class Crawler(object):
         if self.article._top_node is None:
             # try again with the root node.
             self.article._top_node = self.extractor.calculate_best_node(self.article._doc)
-            # if self.article.top_node is None:
-            #    self.article._top_node = self.article.doc
+            if self.article.top_node is None:
+                self.article._top_node = self.article.doc
         else:
             # set the doc member to the discovered article node.
             # self.article._doc = doc
