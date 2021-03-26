@@ -375,7 +375,7 @@ class Crawler(object):
                 doc, tag='a', attr='class', value='twitter-timeline-link')
             if a_links:
                 parsing_candidate.url = self.parser.getAttribute(a_links[0], 'href')
-                html = self.htmlfetcher.get_html(parsing_candidate.url)
+                html = self.fetcher.fetch(parsing_candidate.url)
                 crawl_candidate.raw_html = html
         elif site_domain == "www.facebook.com" and "/posts/" in parsing_candidate.url:
             html = html.replace("<!--", "")
@@ -390,8 +390,8 @@ class Crawler(object):
                 match = link_re.search(href)
                 if match:
                     url = match.groupdict()["url"]
-                    parsing_candidate.url = urllib.unquote(url)
-                    html = self.htmlfetcher.get_html(parsing_candidate.url)
+                    parsing_candidate.url = urllib.parse.unquote(url)
+                    html = self.fetcher.fetch(parsing_candidate.url)
                     crawl_candidate.raw_html = html
                     break
 
