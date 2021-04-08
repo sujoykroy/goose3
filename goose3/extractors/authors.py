@@ -31,7 +31,7 @@ class AuthorsExtractor(BaseExtractor):
     def extract(self):
         authors = []
 
-        if self.article.schema and "author" in self.article.schema:
+        if self.article.schema and self.article.schema.get("author"):
             for item in self.article.schema["author"]:
                 if isinstance(item, str):
                     authors.append(item)
