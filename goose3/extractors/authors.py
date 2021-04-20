@@ -35,12 +35,12 @@ class AuthorsExtractor(BaseExtractor):
            hasattr(self.article.schema, 'get') and \
            self.article.schema.get("author"):
             if isinstance(self.article.schema["author"], dict):
-                authors = [self.article.schema["author"]]
+                canidate_authors = [self.article.schema["author"]]
             elif isinstance(self.article.schema["author"], list):
-                authors = self.article.schema["author"]
+                canidate_authors = self.article.schema["author"]
             else:
-                authors = []
-            for item in authors:
+                canidate_authors = []
+            for item in canidate_authors:
                 if isinstance(item, str):
                     authors.append(item)
                 elif item.get("@type") == 'Person':
