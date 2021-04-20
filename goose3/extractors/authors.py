@@ -31,20 +31,27 @@ class AuthorsExtractor(BaseExtractor):
     def extract(self):
         authors = []
 
-        if self.article.schema and \
-           hasattr(self.article.schema, 'get') and \
-           self.article.schema.get("author"):
-            if isinstance(self.article.schema["author"], dict):
-                canidate_authors = [self.article.schema["author"]]
-            elif isinstance(self.article.schema["author"], list):
-                canidate_authors = self.article.schema["author"]
-            else:
-                canidate_authors = []
-            for item in canidate_authors:
-                if isinstance(item, str):
-                    authors.append(item)
-                elif item.get("@type") == 'Person':
-                    authors.append(item.get("name", ''))
+        if self.article.schema and hasattr(self.article.schema, 'get'):
+            if self.article.schema.get("author"):
+                if isinstance(self.article.schema["author"], dict):
+                    canidate_authors = [self.article.schema["author"]]
+                elif isinstance(self.article.schema["author"], list):
+                    canidate_authors = self.article.schema["author"]
+                else:
+                    canidate_authors = []
+
+                for item in canidate_authors:
+                    if isinstance(item, str):
+                        authors.append(item)
+                    elif item.get("@type") == 'Person':
+                        authors.append(item.get("name", ''))
+
+            creator = self.article.schema.get("creator")
+            if creator:
+                if isinstance(creator, dict) and creator.get('@type') == 'Person':
+                    authors.append(creator.get('name'))
+                elif isinstance(creator, list):
+                    authors.extend(creator)
 
         if not authors:
             author_nodes = self.parser.getElementsByTag(

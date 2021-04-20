@@ -21,6 +21,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import re
 import json
 
 from goose3.extractors import BaseExtractor
@@ -31,6 +32,7 @@ KNOWN_SCHEMA_TYPES = (
     "Article"
 )
 
+CDATA_RE = re.compile(r'(^\s*\/\/<\!\[CDATA\[)|(\/\/\]\]>\s*$)', re.I)
 
 class SchemaExtractor(BaseExtractor):
 
@@ -40,7 +42,9 @@ class SchemaExtractor(BaseExtractor):
                                              value='application/ld\\+json')
         for meta in metas:
             try:
-                content = json.loads(meta.text_content())
+                content_text = meta.text_content()
+                content_text = CDATA_RE.sub("", content_text).strip()
+                content = json.loads(content_text)
                 if isinstance(content, list):
                     for context in content:
                         if (context["@context"] == "http://schema.org" and

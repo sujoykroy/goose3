@@ -82,3 +82,8 @@ class TestArticleAuthor(TestExtractionBase):
         # default assertion
         msg = u"Error %s \nexpected: %s\nresult: %s" % (field, expected_value, result_value)
         self.assertEqual(expected_value, result_value, msg=msg)
+
+
+    def test_weforum(self):
+        article = self.getArticle()
+        self.assertEqual(self.data['expected']["authors"], article.authors)
