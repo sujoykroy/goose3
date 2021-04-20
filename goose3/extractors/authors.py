@@ -34,11 +34,17 @@ class AuthorsExtractor(BaseExtractor):
         if self.article.schema and \
            hasattr(self.article.schema, 'get') and \
            self.article.schema.get("author"):
-            for item in self.article.schema["author"]:
+            if isinstance(self.article.schema["author"], dict):
+                authors = [self.article.schema["author"]]
+            elif isinstance(self.article.schema["author"], list):
+                authors = self.article.schema["author"]
+            else:
+                authors = []
+            for item in authors:
                 if isinstance(item, str):
                     authors.append(item)
                 elif item.get("@type") == 'Person':
-                        authors.append(item.get("name", ''))
+                    authors.append(item.get("name", ''))
 
         if not authors:
             author_nodes = self.parser.getElementsByTag(
